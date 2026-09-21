@@ -9,3 +9,5 @@ venv/
 .mypy_cache/
 *.db
 .DS_Store
+compare-apks/
+*.apk

@@ -61,7 +61,39 @@ Forwarder app posts JSON to `/webhook/sms` with header `X-API-Key`.
 | `/search <text>` | Search body |
 | `/from <sender>` | Filter by sender |
 | `/devices` | Linked phones |
+| `/adddevice <id> [label]` | Add your device to DB |
 | `/stats` | Counts |
+
+## Add your device to DB
+
+Jab tum DB mein device daalte ho, turant `/devices` pe dikhta hai (SMS aane ka wait nahi).
+
+**Telegram:**
+```
+/adddevice my-pixel Papa Phone
+/devices
+```
+
+**CLI:**
+```bash
+PYTHONPATH=. python scripts/add_device.py my-pixel "Papa Phone"
+```
+
+**API (admin):**
+```bash
+curl -X POST http://127.0.0.1:8000/api/devices \
+  -H "Content-Type: application/json" \
+  -H "X-Admin-Key: $ADMIN_API_KEY" \
+  -d '{"device_id":"my-pixel","label":"Papa Phone"}'
+```
+
+**Phone self-register (webhook key):**
+```bash
+curl -X POST http://127.0.0.1:8000/webhook/device \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $WEBHOOK_API_KEY" \
+  -d '{"device_id":"my-pixel","label":"Papa Phone"}'
+```
 
 ## API
 

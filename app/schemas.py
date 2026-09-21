@@ -27,6 +27,11 @@ class SmsListResponse(BaseModel):
     items: list[SmsOut]
 
 
+class DeviceRegisterRequest(BaseModel):
+    device_id: str = Field(..., min_length=1, max_length=128)
+    label: str = Field(default="", max_length=255)
+
+
 class DeviceOut(BaseModel):
     device_id: str
     label: str

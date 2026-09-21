@@ -105,3 +105,39 @@ async def test_bearer_auth(client: AsyncClient):
         json={"sender": "Bank", "body": "OTP 123456", "device_id": "phone-2"},
     )
     assert r.status_code == 201
+
+
+@pytest.mark.asyncio
+async def test_register_device_shows_in_list(client: AsyncClient):
+    # Admin: manually put device in DB
+    r = await client.post(
+        "/api/devices",
+        headers={"X-Admin-Key": "test-admin-key"},
+        json={"device_id": "my-pixel", "label": "Papa Phone"},
+    )
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["device_id"] == "my-pixel"
+    assert body["label"] == "Papa Phone"
+
+    listed = await client.get(
+        "/api/devices",
+        headers={"X-Admin-Key": "test-admin-key"},
+    )
+    assert listed.status_code == 200
+    devices = listed.json()
+    assert any(d["device_id"] == "my-pixel" and d["label"] == "Papa Phone" for d in devices)
+
+    # Webhook path (phone self-register)
+    r2 = await client.post(
+        "/webhook/device",
+        headers={"X-API-Key": "test-webhook-key"},
+        json={"device_id": "work-phone", "label": "Office"},
+    )
+    assert r2.status_code == 201
+    listed2 = await client.get(
+        "/api/devices",
+        headers={"X-Admin-Key": "test-admin-key"},
+    )
+    ids = {d["device_id"] for d in listed2.json()}
+    assert "my-pixel" in ids and "work-phone" in ids

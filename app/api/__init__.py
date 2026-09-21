@@ -10,6 +10,7 @@ from app.database import get_session
 from app.models import Device, SmsMessage
 from app.schemas import (
     DeviceOut,
+    DeviceRegisterRequest,
     HealthResponse,
     SmsIngestRequest,
     SmsListResponse,
@@ -18,6 +19,36 @@ from app.schemas import (
 from app.telegram.notify import notify_new_sms
 
 router = APIRouter()
+
+
+async def upsert_device(
+    session: AsyncSession,
+    device_id: str,
+    label: str | None = None,
+) -> Device:
+    device_id = device_id.strip()
+    if not device_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="device_id is required",
+        )
+    now = datetime.now(timezone.utc)
+    result = await session.execute(select(Device).where(Device.device_id == device_id))
+    device = result.scalar_one_or_none()
+    if device is None:
+        device = Device(
+            device_id=device_id,
+            label=(label or "").strip() or device_id,
+            last_seen_at=now,
+        )
+        session.add(device)
+    else:
+        device.last_seen_at = now
+        if label is not None and label.strip():
+            device.label = label.strip()
+    await session.commit()
+    await session.refresh(device)
+    return device
 
 
 def require_webhook_key(
@@ -99,6 +130,36 @@ async def ingest_sms(
         await notify_new_sms(msg)
 
     return SmsOut.model_validate(msg)
+
+
+@router.post(
+    "/webhook/device",
+    response_model=DeviceOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_webhook_key)],
+)
+async def register_device_webhook(
+    payload: DeviceRegisterRequest,
+    session: AsyncSession = Depends(get_session),
+) -> DeviceOut:
+    """Phone/agent registers itself — shows up immediately in /devices."""
+    device = await upsert_device(session, payload.device_id, payload.label)
+    return DeviceOut.model_validate(device)
+
+
+@router.post(
+    "/api/devices",
+    response_model=DeviceOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_admin_key)],
+)
+async def register_device_admin(
+    payload: DeviceRegisterRequest,
+    session: AsyncSession = Depends(get_session),
+) -> DeviceOut:
+    """Manually add your device to DB — Telegram /devices will list it."""
+    device = await upsert_device(session, payload.device_id, payload.label)
+    return DeviceOut.model_validate(device)
 
 
 @router.get(

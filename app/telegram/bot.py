@@ -45,6 +45,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "/search <text> — search message body\n"
         "/from <sender> — filter by sender\n"
         "/devices — list linked devices\n"
+        "/adddevice <id> [label] — add your device to DB\n"
         "/stats — counts\n"
         "/help — this help"
     )
@@ -170,7 +171,10 @@ async def cmd_devices(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         devices = list(result.scalars().all())
 
     if not devices:
-        await update.effective_message.reply_text("No devices registered yet.")
+        await update.effective_message.reply_text(
+            "No devices registered yet.\n"
+            "Add one: /adddevice my-phone My Phone"
+        )
         return
 
     now = datetime.now(timezone.utc)
@@ -181,8 +185,46 @@ async def cmd_devices(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             last = last.replace(tzinfo=timezone.utc)
         age = now - last
         mins = int(age.total_seconds() // 60)
-        lines.append(f"• {d.device_id} — last seen {mins}m ago")
+        label = d.label or d.device_id
+        lines.append(f"• `{d.device_id}` ({label}) — last seen {mins}m ago")
     await update.effective_message.reply_text("Devices:\n" + "\n".join(lines))
+
+
+async def cmd_adddevice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user = update.effective_user
+    if not _authorized(user.id if user else None):
+        await _deny(update)
+        return
+    if not context.args:
+        await update.effective_message.reply_text(
+            "Usage: /adddevice <device_id> [label]\n"
+            "Example: /adddevice my-pixel Papa Phone"
+        )
+        return
+
+    device_id = context.args[0].strip()
+    label = " ".join(context.args[1:]).strip() or device_id
+
+    async with SessionLocal() as session:
+        result = await session.execute(
+            select(Device).where(Device.device_id == device_id)
+        )
+        device = result.scalar_one_or_none()
+        now = datetime.now(timezone.utc)
+        if device is None:
+            device = Device(device_id=device_id, label=label, last_seen_at=now)
+            session.add(device)
+            created = True
+        else:
+            device.label = label
+            device.last_seen_at = now
+            created = False
+        await session.commit()
+
+    action = "added" if created else "updated"
+    await update.effective_message.reply_text(
+        f"✅ Device {action}: {device_id} ({label})\nUse /devices to list."
+    )
 
 
 async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -220,6 +262,7 @@ def build_application() -> Application:
     app.add_handler(CommandHandler("search", cmd_search))
     app.add_handler(CommandHandler("from", cmd_from))
     app.add_handler(CommandHandler("devices", cmd_devices))
+    app.add_handler(CommandHandler("adddevice", cmd_adddevice))
     app.add_handler(CommandHandler("stats", cmd_stats))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_text))
     return app
