@@ -1,7 +1,10 @@
 import logging
 
+from sqlalchemy import select
+
 from app.config import get_settings
-from app.models import SmsMessage
+from app.database import SessionLocal
+from app.models import SmsMessage, UserAttachment
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +32,7 @@ def _escape_md(text: str) -> str:
 
 
 async def notify_new_sms(msg: SmsMessage) -> None:
+    """Push only to users who attached THIS device_id via /a."""
     settings = get_settings()
     if not settings.telegram_bot_token or not settings.allowed_user_ids:
         return
@@ -40,9 +44,25 @@ async def notify_new_sms(msg: SmsMessage) -> None:
         logger.warning("python-telegram-bot not installed; skip push")
         return
 
+    async with SessionLocal() as session:
+        result = await session.execute(
+            select(UserAttachment).where(UserAttachment.device_id == msg.device_id)
+        )
+        attachments = list(result.scalars().all())
+
+    recipients = {
+        a.telegram_user_id
+        for a in attachments
+        if a.telegram_user_id in settings.allowed_user_ids
+    }
+    if not recipients:
+        # Nobody attached this device — no spam of all devices
+        logger.info("Skip push: no user attached device_id=%s", msg.device_id)
+        return
+
     bot = Bot(token=settings.telegram_bot_token)
     text = format_sms(msg)
-    for user_id in settings.allowed_user_ids:
+    for user_id in recipients:
         try:
             await bot.send_message(
                 chat_id=user_id,
@@ -50,7 +70,6 @@ async def notify_new_sms(msg: SmsMessage) -> None:
                 parse_mode=ParseMode.MARKDOWN_V2,
             )
         except Exception:
-            # Fallback without markdown if escaping fails
             try:
                 plain = (
                     f"New SMS\n"

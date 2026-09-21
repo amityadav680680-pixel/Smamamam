@@ -207,3 +207,20 @@ async def list_devices(
 ) -> list[DeviceOut]:
     result = await session.execute(select(Device).order_by(Device.last_seen_at.desc()))
     return [DeviceOut.model_validate(d) for d in result.scalars().all()]
+
+
+@router.get(
+    "/api/devices/{device_id}",
+    response_model=DeviceOut,
+    dependencies=[Depends(require_admin_key)],
+)
+async def get_one_device(
+    device_id: str,
+    session: AsyncSession = Depends(get_session),
+) -> DeviceOut:
+    """Return ONE device by id — not the full list."""
+    result = await session.execute(select(Device).where(Device.device_id == device_id))
+    device = result.scalar_one_or_none()
+    if device is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
+    return DeviceOut.model_validate(device)

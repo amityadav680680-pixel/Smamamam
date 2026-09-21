@@ -60,9 +60,36 @@ Forwarder app posts JSON to `/webhook/sms` with header `X-API-Key`.
 | `/latest [n]` | Last n messages (default 5) |
 | `/search <text>` | Search body |
 | `/from <sender>` | Filter by sender |
-| `/devices` | Linked phones |
+| `/a <device_id>` | **Attach ONE device** (not all) + Firebase sync if set |
+| `/a` | Show currently attached device |
+| `/a off` | Detach |
+| `/latest [n]` | Last n SMS (**attached device only**) |
+| `/search <text>` | Search body |
+| `/from <sender>` | Filter by sender |
+| `/devices` | List all devices in DB |
 | `/adddevice <id> [label]` | Add your device to DB |
 | `/stats` | Counts |
+
+## Attach one device (`/a`)
+
+Saari devices nahi — sirf jo ID doge woh dikhe / active ho:
+
+```
+/a my-pixel
+/latest
+```
+
+Firebase attach (optional) — `.env` mein apna RTDB:
+
+```
+FIREBASE_RTDB_URL=https://YOUR-project-default-rtdb.firebaseio.com
+FIREBASE_AUTH_TOKEN=optional_secret
+```
+
+`/a my-pixel` likhne pe ye paths update hote hain:
+- `/attached.json` — current device
+- `/config/my-pixel.json`
+- `/devices/my-pixel.json`
 
 ## Add your device to DB
 

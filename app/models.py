@@ -42,3 +42,17 @@ class Device(Base):
         DateTime(timezone=True),
         default=utcnow,
     )
+
+
+class UserAttachment(Base):
+    """Which device a Telegram user currently has attached (/a <device_id>)."""
+
+    __tablename__ = "user_attachments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    telegram_user_id: Mapped[int] = mapped_column(Integer, unique=True, index=True)
+    device_id: Mapped[str] = mapped_column(String(128), index=True)
+    attached_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+    )

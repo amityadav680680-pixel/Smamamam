@@ -23,6 +23,11 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite+aiosqlite:///./data/sms_monitor.db"
 
+    # Optional Firebase Realtime Database — /a attaches device here too
+    # Example: https://my-project-default-rtdb.firebaseio.com
+    firebase_rtdb_url: str = ""
+    firebase_auth_token: str = ""
+
     @property
     def allowed_user_ids(self) -> set[int]:
         if not self.telegram_allowed_user_ids.strip():
@@ -32,6 +37,10 @@ class Settings(BaseSettings):
             for part in self.telegram_allowed_user_ids.split(",")
             if part.strip()
         }
+
+    @property
+    def firebase_enabled(self) -> bool:
+        return bool(self.firebase_rtdb_url.strip())
 
 
 @lru_cache

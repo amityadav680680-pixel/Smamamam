@@ -141,3 +141,17 @@ async def test_register_device_shows_in_list(client: AsyncClient):
     )
     ids = {d["device_id"] for d in listed2.json()}
     assert "my-pixel" in ids and "work-phone" in ids
+
+    one = await client.get(
+        "/api/devices/my-pixel",
+        headers={"X-Admin-Key": "test-admin-key"},
+    )
+    assert one.status_code == 200
+    assert one.json()["device_id"] == "my-pixel"
+    assert one.json()["label"] == "Papa Phone"
+
+    missing = await client.get(
+        "/api/devices/nope",
+        headers={"X-Admin-Key": "test-admin-key"},
+    )
+    assert missing.status_code == 404
